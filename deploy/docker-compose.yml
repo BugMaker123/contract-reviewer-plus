@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: contract_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: contract_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: contract_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  onlyoffice:
+    image: onlyoffice/documentserver:8.0
+    container_name: contract_onlyoffice
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: "contract_reviewer_secret_jwt"
+      JWT_HEADER: "Authorization"
+      USE_UNAUTHORIZED_STORAGE: "true"
+    ports:
+      - "8080:80"
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_log:/var/log/onlyoffice
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    container_name: contract_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgrespassword@postgres:5432/contract_db"
+      REDIS_URL: "redis://redis:6379/0"
+      ONLYOFFICE_PUBLIC_URL: "http://localhost:8080"
+      ONLYOFFICE_INTERNAL_URL: "http://onlyoffice"
+      ONLYOFFICE_SECRET: "contract_reviewer_secret_jwt"
+      STORAGE_DIR: "/app/data/storage"
+      MOCK_AI_PIPELINE: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - storagedata:/app/data/storage
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    container_name: contract_worker
+    restart: unless-stopped
+    command: ["python", "-m", "contract_app.worker.worker_runner"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgrespassword@postgres:5432/contract_db"
+      REDIS_URL: "redis://redis:6379/0"
+      STORAGE_DIR: "/app/data/storage"
+      MOCK_AI_PIPELINE: "true"
+    volumes:
+      - storagedata:/app/data/storage
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    container_name: contract_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
+volumes:
+  pgdata:
+  redisdata:
+  storagedata:
+  onlyoffice_data:
+  onlyoffice_log:

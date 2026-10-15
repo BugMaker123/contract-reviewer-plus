@@ -1,0 +1,57 @@
+:root {
+  /* Enterprise Light Theme - Crisp, dignified Legal Tech palette */
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-glass: rgba(255, 255, 255, 0.95);
+  --border-subtle: #e2e8f0;
+  --border-focus: #2563eb;
+
+  /* Typography Colors - High contrast slate */
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #94a3b8;
+
+  /* Corporate Brand Colors */
+  --brand-primary: #2563eb;
+  --brand-hover: #1d4ed8;
+  --brand-glow: rgba(37, 99, 235, 0.12);
+
+  /* Risk Semantics (Light mode) */
+  --risk-high-bg: #fef2f2;
+  --risk-high-text: #dc2626;
+  --risk-high-border: #fecaca;
+
+  --risk-medium-bg: #fffbeb;
+  --risk-medium-text: #d97706;
+  --risk-medium-border: #fde68a;
+
+  --risk-low-bg: #eff6ff;
+  --risk-low-text: #2563eb;
+  --risk-low-border: #bfdbfe;
+
+  /* Native Word Track Changes */
+  --rev-ins-bg: #dcfce7;
+  --rev-ins-text: #15803d;
+  --rev-ins-border: #86efac;
+
+  --rev-del-bg: #fee2e2;
+  --rev-del-text: #b91c1c;
+  --rev-del-strike: #ef4444;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-heading: 'Inter', var(--font-sans);
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Shadows & Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+}
