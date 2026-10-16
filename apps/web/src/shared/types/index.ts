@@ -6,6 +6,10 @@ export interface Contract {
   revision: number;
   stance: string;
   review_status: 'unreviewed' | 'reviewing' | 'reviewed' | 'verified';
+  category_id?: string;
+  category_name?: string;
+  checklist_ids?: string[];
+  focus_areas?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +33,26 @@ export interface DocumentBlock {
   clause_id: string;
   text: string;
   length: number;
+  align?: 'center' | 'right' | 'left' | 'justify';
+  bold?: boolean;
+  indent?: boolean;
+  is_title?: boolean;
+  is_blank?: boolean;
+}
+
+export interface ChecklistItem {
+  id: string;
+  category_id: string;
+  category_name?: string;
+  title: string;
+  risk_level: 'high' | 'medium' | 'low';
+  standard_clause?: string;
+  check_prompt?: string;
+  prompt_template?: string;
+  is_enabled: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface EditorSession {

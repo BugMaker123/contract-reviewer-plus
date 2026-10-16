@@ -9,6 +9,8 @@ from contract_app.http.sessions_router import router as sessions_router
 from contract_app.http.reviews_router import router as reviews_router
 from contract_app.http.decisions_router import router as decisions_router
 from contract_app.http.exports_router import router as exports_router
+from contract_app.http.categories_router import router as categories_router
+from contract_app.http.checklists_router import router as checklists_router
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -49,6 +51,8 @@ def create_app() -> FastAPI:
     app.include_router(reviews_router, prefix=api_prefix)
     app.include_router(decisions_router, prefix=api_prefix)
     app.include_router(exports_router, prefix=api_prefix)
+    app.include_router(categories_router, prefix=api_prefix)
+    app.include_router(checklists_router, prefix=api_prefix)
 
     @app.get("/health")
     @app.get(f"{api_prefix}/health")

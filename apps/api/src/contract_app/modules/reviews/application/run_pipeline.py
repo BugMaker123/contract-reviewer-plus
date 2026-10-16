@@ -37,7 +37,20 @@ class RunPipelineUseCase:
 
             # Stage 3: analyze_clauses
             await self._step_start(run, PipelineStage.ANALYZE_CLAUSES, "多维度条款风险分析")
-            raw_findings = await model_gateway.analyze_blocks(blocks, run.stance, run.focus_areas)
+            contract = await repo_store.get_contract(run.contract_id)
+            checklist_items = []
+            if contract and contract.checklist_ids:
+                for cid in contract.checklist_ids:
+                    chk = await repo_store.get_checklist(cid)
+                    if chk:
+                        checklist_items.append(chk)
+
+            raw_findings = await model_gateway.analyze_blocks(
+                blocks=blocks,
+                stance=run.stance,
+                focus_areas=run.focus_areas,
+                checklists=checklist_items
+            )
 
             # Publish streaming provisional public summaries
             for idx, f in enumerate(raw_findings):

@@ -61,11 +61,13 @@ tsconfig.tsbuildinfo
 data/contracts/
 data/exports/
 data/sessions/
+data/storage/
 data/tmp/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
 data/*.docx
+data/**/*.docx
 !data/.gitkeep
 
 # Local logs

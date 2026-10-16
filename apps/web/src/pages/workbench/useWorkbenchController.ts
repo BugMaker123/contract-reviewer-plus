@@ -56,6 +56,13 @@ export function useWorkbenchController(contractId: string) {
 
       if (contract.value?.latest_review_run_id) {
         await loadReviewResults(contract.value.latest_review_run_id);
+      } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autoReview') === '1') {
+          setTimeout(() => {
+            startReview();
+          }, 350);
+        }
       }
       await loadVersions();
     } catch (err) {
@@ -97,13 +104,13 @@ export function useWorkbenchController(contractId: string) {
         contract_id: contractId,
         input_version_id: headVersion.value.id,
         stance: contract.value.stance,
-        focus_areas: focusAreas
+        focus_areas: focusAreas || contract.value.focus_areas || undefined
       });
 
       const runId = res.run_id;
       sseClient?.close();
       sseClient = new SSEClient(runId, {
-        onEvent: (type, payload, seq) => {
+        onEvent: async (type, payload, seq) => {
           executionLogs.value.unshift({
             seq,
             time: new Date().toISOString(),
@@ -118,6 +125,11 @@ export function useWorkbenchController(contractId: string) {
           } else if (type === 'succeeded') {
             reviewComplete.value = true;
             isReviewing.value = false;
+            await loadReviewResults(runId);
+            if (contract.value) {
+              contract.value.latest_review_run_id = runId;
+              contract.value.review_status = 'reviewed';
+            }
           } else if (type === 'failed') {
             reviewFailed.value = true;
             reviewError.value = payload.error;

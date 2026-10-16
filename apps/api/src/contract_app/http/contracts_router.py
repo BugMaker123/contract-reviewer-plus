@@ -17,22 +17,82 @@ SAMPLE_CONTRACT_TEXT = [
     "第六条（争议解决）：因本合同履行引起的任何争议，双方应友好协商；协商不成的，应向对方所在地有管辖权的人民法院提起诉讼。"
 ]
 
+import json
+
 @router.post("")
 async def create_contract(
     file: Optional[UploadFile] = File(None),
     title: Optional[str] = Form(None),
-    stance: Optional[str] = Form("我方(受托方)")
+    stance: Optional[str] = Form("我方(受托方)"),
+    category_id: Optional[str] = Form(None),
+    category_name: Optional[str] = Form(None),
+    checklist_ids: Optional[str] = Form(None),
+    focus_areas: Optional[str] = Form(None)
 ):
-    if file:
-        content = await file.read()
-        file_name = file.filename or "uploaded_contract.docx"
-        object_key, content_hash = file_storage.save_file(content, file_name)
-        contract_title = title or file_name.replace(".docx", "")
-    else:
-        contract_title = title or "软件定制开发与技术服务合作协议（标准业务样本）"
-        object_key, content_hash = docx_service.create_sample_docx(contract_title, SAMPLE_CONTRACT_TEXT)
+    if not file:
+        raise HTTPException(
+            status_code=400,
+            detail="必须上传合同文档（.docx 格式），请选择文件后再进入工作台"
+        )
 
-    contract = Contract(title=contract_title, stance=stance or "我方")
+    file_name = file.filename or "contract.docx"
+    if not file_name.lower().endswith(".docx"):
+        raise HTTPException(
+            status_code=400,
+            detail="当前仅支持 Word (.docx) 格式文档。若为旧版 .doc 或其他格式，请另存为 .docx 后上传"
+        )
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="上传的文件内容为空，请选择有效的合同文件")
+
+    object_key, content_hash = file_storage.save_file(content, file_name)
+    contract_title = title or file_name.rsplit(".", 1)[0]
+
+    # Parse checklist IDs
+    parsed_checklist_ids = []
+    if checklist_ids:
+        try:
+            parsed_checklist_ids = json.loads(checklist_ids)
+        except Exception:
+            parsed_checklist_ids = [c.strip() for c in checklist_ids.split(",") if c.strip()]
+
+    if not parsed_checklist_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="必须选择至少一项审查清单标准后再进入工作台"
+        )
+
+    # Parse focus areas
+    parsed_focus_areas = []
+    if focus_areas:
+        try:
+            parsed_focus_areas = json.loads(focus_areas)
+        except Exception:
+            parsed_focus_areas = [f.strip() for f in focus_areas.split(",") if f.strip()]
+
+    # Auto resolve category_name if missing
+    resolved_cat_name = category_name
+    if category_id and not resolved_cat_name:
+        cat = await repo_store.get_category(category_id)
+        if cat:
+            resolved_cat_name = cat.name
+
+    # If focus areas not passed but checklist IDs are, auto-populate from checklist titles
+    if parsed_checklist_ids and not parsed_focus_areas:
+        for cid in parsed_checklist_ids:
+            chk = await repo_store.get_checklist(cid)
+            if chk:
+                parsed_focus_areas.append(chk.title)
+
+    contract = Contract(
+        title=contract_title,
+        stance=stance or "我方",
+        category_id=category_id,
+        category_name=resolved_cat_name,
+        checklist_ids=parsed_checklist_ids,
+        focus_areas=parsed_focus_areas
+    )
     version = DocumentVersion(
         contract_id=contract.id,
         kind="original",
@@ -51,9 +111,21 @@ async def create_contract(
     }
 
 @router.get("")
-async def list_contracts():
-    contracts = await repo_store.list_contracts()
-    return {"contracts": contracts}
+async def list_contracts(page: int = 1, page_size: int = 10, keyword: Optional[str] = None):
+    items, total = await repo_store.list_contracts_paged(page=page, page_size=page_size, keyword=keyword)
+    return {
+        "contracts": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size
+    }
+
+@router.delete("/{contract_id}")
+async def delete_contract(contract_id: str):
+    success = await repo_store.delete_contract(contract_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    return {"success": True, "deleted_id": contract_id}
 
 @router.get("/{contract_id}")
 async def get_contract(contract_id: str):
@@ -79,3 +151,38 @@ async def complete_verification(contract_id: str):
     contract.review_status = "verified"
     await repo_store.save_contract(contract)
     return {"success": True, "contract": contract}
+
+@router.post("/sample")
+async def create_sample_contract_route(
+    category_id: Optional[str] = Form(None),
+    category_name: Optional[str] = Form(None),
+    checklist_ids: Optional[str] = Form(None),
+):
+    contract_title = "软件定制开发与技术服务合作协议（标准业务样本）"
+    object_key, content_hash = docx_service.create_sample_docx(contract_title, SAMPLE_CONTRACT_TEXT)
+    parsed_checklist_ids = ["chk_001", "chk_002", "chk_003"]
+    if checklist_ids:
+        try:
+            parsed_checklist_ids = json.loads(checklist_ids)
+        except Exception:
+            parsed_checklist_ids = [c.strip() for c in checklist_ids.split(",") if c.strip()]
+    contract = Contract(
+        title=contract_title,
+        stance="我方(受托方)",
+        category_id=category_id or "cat_tech",
+        category_name=category_name or "技术开发与实施类",
+        checklist_ids=parsed_checklist_ids,
+        focus_areas=["付款节点与验收先决条件明确", "违约金责任上限与直接损失界定", "既有背景知识产权及衍生权属保留"]
+    )
+    version = DocumentVersion(
+        contract_id=contract.id,
+        kind="original",
+        object_key=object_key,
+        content_hash=content_hash,
+        created_by="系统初始样本",
+        summary="原始示例合同快照"
+    )
+    contract.head_version_id = version.id
+    await repo_store.save_version(version)
+    await repo_store.save_contract(contract)
+    return {"contract": contract, "initial_version": version}

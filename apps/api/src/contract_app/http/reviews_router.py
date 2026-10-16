@@ -39,7 +39,7 @@ async def start_review_run(req: StartReviewRequest, background_tasks: Background
         contract_id=req.contract_id,
         input_version_id=version.id,
         stance=req.stance or contract.stance,
-        focus_areas=req.focus_areas or ["违约责任", "单方解约", "知识产权", "付款条件"]
+        focus_areas=req.focus_areas or contract.focus_areas or ["违约责任", "单方解约", "知识产权", "付款条件"]
     )
     await repo_store.save_review_run(run)
     contract.set_review_run(run.id)

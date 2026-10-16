@@ -2,145 +2,186 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '@/shared/http/client';
-import type { Contract } from '@/shared/types';
-import BaseButton from '@/shared/ui/BaseButton.vue';
-import ContractDashboardCard from '@/features/contracts/components/ContractDashboardCard.vue';
-import ContractUploadModal from '@/features/contracts/components/ContractUploadModal.vue';
-import { FileText, Upload, Play, Shield, Search } from 'lucide-vue-next';
+import PortalSidebar from '@/features/portal/components/PortalSidebar.vue';
+import PortalTopNav from '@/features/portal/components/PortalTopNav.vue';
+import PortalReviewLauncher from '@/features/portal/components/PortalReviewLauncher.vue';
+import ReviewRecordsView from '@/features/portal/components/ReviewRecordsView.vue';
+import CategoryManagementView from '@/features/portal/components/CategoryManagementView.vue';
+import ChecklistManagementView from '@/features/portal/components/ChecklistManagementView.vue';
+import { FileText } from 'lucide-vue-next';
 
 const router = useRouter();
-const contracts = ref<Contract[]>([]);
-const isLoading = ref(true);
-const searchQuery = ref('');
-const showUploadModal = ref(false);
-const isUploading = ref(false);
+const activeTab = ref<'start' | 'records' | 'categories' | 'checklists' | 'draft'>('start');
+const recordsTotal = ref(0);
 
-const loadContracts = async () => {
-  isLoading.value = true;
+const fetchRecordsCount = async () => {
   try {
-    const res: any = await api.get('/contracts');
-    contracts.value = res.contracts;
-  } finally {
-    isLoading.value = false;
+    const res: any = await api.get('/contracts', { params: { page: 1, page_size: 1 } });
+    recordsTotal.value = res.total || (res.contracts ? res.contracts.length : 0);
+  } catch (e) {
+    // ignore
   }
 };
 
-const createSampleContract = async () => {
-  isLoading.value = true;
-  try {
-    const res: any = await api.post('/contracts', {});
-    router.push(`/workbench/${res.contract.id}`);
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-const submitUpload = async (data: { file: File | null; title: string; stance: string }) => {
-  isUploading.value = true;
+const createSampleContract = async (payload?: { categoryId?: string; categoryName?: string; checklistIds?: string[] }) => {
   try {
     const formData = new FormData();
-    if (data.file) {
-      formData.append('file', data.file);
+    if (payload?.categoryId) formData.append('category_id', payload.categoryId);
+    if (payload?.categoryName) formData.append('category_name', payload.categoryName);
+    if (payload?.checklistIds && payload.checklistIds.length > 0) {
+      formData.append('checklist_ids', JSON.stringify(payload.checklistIds));
     }
-    formData.append('title', data.title);
-    formData.append('stance', data.stance);
+    const res: any = await api.post('/contracts/sample', formData);
+    router.push({ path: `/workbench/${res.contract.id}`, query: { autoReview: '1' } });
+  } catch (err: any) {
+    alert(err?.response?.data?.detail || '载入示例失败');
+  }
+};
+
+const handleStartReview = async (payload: {
+  file: File | null;
+  mode: string;
+  referenceNotes: string;
+  categoryId?: string;
+  categoryName?: string;
+  checklistIds?: string[];
+}) => {
+  if (!payload.file) {
+    alert('请先上传待审查的 Word (.docx) 合同文档');
+    return;
+  }
+  if (!payload.checklistIds || payload.checklistIds.length === 0) {
+    alert('请选择适用的业务分类并至少勾选 1 项审查清单标准');
+    return;
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', payload.file);
+    formData.append('title', payload.file.name.replace(/\.[^/.]+$/, ''));
+    formData.append('stance', '我方（受托方/通用）');
+    if (payload.categoryId) formData.append('category_id', payload.categoryId);
+    if (payload.categoryName) formData.append('category_name', payload.categoryName);
+    formData.append('checklist_ids', JSON.stringify(payload.checklistIds));
 
     const res: any = await api.post('/contracts', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
-    showUploadModal.value = false;
-    router.push(`/workbench/${res.contract.id}`);
-  } finally {
-    isUploading.value = false;
+    router.push({ path: `/workbench/${res.contract.id}`, query: { autoReview: '1' } });
+  } catch (err: any) {
+    alert(err?.response?.data?.detail || '启动审查失败');
   }
 };
 
-onMounted(loadContracts);
+onMounted(fetchRecordsCount);
 </script>
 
 <template>
-  <div class="contracts-page-layout">
-    <header class="contracts-hero glass-panel">
-      <div class="hero-brand">
-        <div class="brand-logo-glow">
-          <Shield :size="22" class="logo-icon" />
-        </div>
-        <div>
-          <h1 class="hero-title">企业合同审查与修订复核系统</h1>
-          <p class="hero-subtitle">基于 DOCX 原生修订痕迹的合同合规审查、法务复核与交付管理平台</p>
-        </div>
-      </div>
-
-      <div class="hero-actions">
-        <BaseButton variant="secondary" @click="createSampleContract">
-          <Play :size="14" /> 载入示例合同样本
-        </BaseButton>
-        <BaseButton variant="primary" @click="showUploadModal = true">
-          <Upload :size="14" /> 上传合同文档 (.docx)
-        </BaseButton>
-      </div>
-    </header>
-
-    <main class="contracts-content-container">
-      <div class="content-toolbar">
-        <h2 class="section-title">合同任务列表 ({{ contracts.length }})</h2>
-        <div class="search-box">
-          <Search :size="14" class="search-ic" />
-          <input v-model="searchQuery" type="text" class="search-inp" placeholder="搜索合同名称..." />
-        </div>
-      </div>
-
-      <div v-if="isLoading" class="loading-state">
-        <div class="spinner"></div>
-        <span>正在读取合同任务与版本历史...</span>
-      </div>
-
-      <div v-else-if="contracts.length === 0" class="empty-cards-state">
-        <FileText :size="48" class="empty-icon" />
-        <h3 class="empty-title">当前尚无合同审查任务</h3>
-        <p class="empty-desc">您可以点击上方按钮直接载入标准合同样本，或上传本地 Word (.docx) 文件进行条款审查与修订复核。</p>
-        <BaseButton variant="primary" size="md" @click="createSampleContract">
-          载入示例合同文档
-        </BaseButton>
-      </div>
-
-      <div v-else class="contracts-cards-grid">
-        <ContractDashboardCard
-          v-for="c in contracts"
-          :key="c.id"
-          :contract="c"
-          @click="router.push(`/workbench/${c.id}`)"
-        />
-      </div>
-    </main>
-
-    <ContractUploadModal
-      v-model="showUploadModal"
-      :loading="isUploading"
-      @submit="submitUpload"
+  <div class="portal-main-layout">
+    <!-- Left Fixed Navigation Sidebar -->
+    <PortalSidebar
+      :active-tab="activeTab"
+      :records-count="recordsTotal"
+      @navigate="activeTab = $event"
     />
+
+    <!-- Right Workspace Area -->
+    <div class="portal-body-wrapper">
+      <PortalTopNav />
+
+      <main class="portal-content-scroll">
+        <!-- 1. Start Launcher View -->
+        <PortalReviewLauncher
+          v-if="activeTab === 'start'"
+          @start-review="handleStartReview"
+          @load-sample="createSampleContract"
+        />
+
+        <!-- 2. Review Records View (with Pagination, Detail & Deletion) -->
+        <ReviewRecordsView
+          v-else-if="activeTab === 'records'"
+          @load-sample="createSampleContract"
+        />
+
+        <!-- 3. Business Category Management View (CRUD + Pagination) -->
+        <CategoryManagementView
+          v-else-if="activeTab === 'categories'"
+        />
+
+        <!-- 4. Checklist Standards Management View (CRUD + Category Binding + Pagination) -->
+        <ChecklistManagementView
+          v-else-if="activeTab === 'checklists'"
+        />
+
+        <!-- 5. Drafting Module Placeholder -->
+        <div v-else-if="activeTab === 'draft'" class="empty-cards-state draft-placeholder">
+          <FileText :size="42" class="empty-icon" />
+          <h3 class="empty-title">合同起草与范本库模块</h3>
+          <p class="empty-desc">内部合同标准范本起草与条款库组装功能规划中，当前可使用【合同审查】体验审查与修订流水线。</p>
+          <button class="primary-blue-btn" @click="activeTab = 'start'">
+            返回合同审查
+          </button>
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.contracts-page-layout { min-height: 100vh; display: flex; flex-direction: column; background: #f8fafc; }
-.contracts-hero { padding: 20px 36px; background: #ffffff; border-bottom: 1px solid #e2e8f0; border-radius: 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03); }
-.hero-brand { display: flex; align-items: center; gap: 14px; }
-.brand-logo-glow { width: 40px; height: 40px; border-radius: var(--radius-sm); background: #2563eb; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25); }
-.logo-icon { color: #fff; }
-.hero-title { font-family: var(--font-heading); font-size: 18px; font-weight: 700; color: #0f172a; }
-.hero-subtitle { font-size: 13px; color: #64748b; }
-.hero-actions { display: flex; gap: 12px; }
-.contracts-content-container { flex: 1; padding: 28px 36px; max-width: 1320px; margin: 0 auto; width: 100%; }
-.content-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.section-title { font-family: var(--font-heading); font-size: 16px; font-weight: 600; color: #0f172a; }
-.search-box { position: relative; display: flex; align-items: center; }
-.search-ic { position: absolute; left: 10px; color: #94a3b8; }
-.search-inp { padding: 6px 14px 6px 32px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: var(--radius-sm); color: #0f172a; font-size: 13px; outline: none; width: 220px; }
-.search-inp:focus { border-color: #2563eb; }
-.contracts-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
-.empty-cards-state { text-align: center; padding: 80px 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: var(--radius-lg); }
+.portal-main-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.portal-body-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.portal-content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+.empty-cards-state {
+  text-align: center;
+  padding: 80px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  max-width: 800px;
+  margin: 60px auto 0;
+}
 .empty-icon { color: #94a3b8; }
 .empty-title { font-size: 16px; color: #0f172a; font-weight: 600; }
 .empty-desc { font-size: 13px; color: #64748b; max-width: 480px; line-height: 1.6; }
+
+.primary-blue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: var(--brand-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.primary-blue-btn:hover {
+  background: var(--brand-hover);
+}
 </style>
