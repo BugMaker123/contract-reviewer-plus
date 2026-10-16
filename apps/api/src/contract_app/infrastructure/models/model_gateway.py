@@ -6,10 +6,50 @@ from contract_app.bootstrap.config import settings
 
 class ModelGateway:
     def __init__(self):
-        self.api_base = settings.openai_api_base
-        self.api_key = settings.openai_api_key
-        self.model = settings.openai_model
+        self._refresh_provider_config()
+
+    def _refresh_provider_config(self):
+        self.provider = (settings.llm_provider or "deepseek").lower()
+        if self.provider == "deepseek":
+            self.api_base = settings.deepseek_api_base.rstrip("/")
+            self.api_key = settings.deepseek_api_key
+            self.model = settings.deepseek_model or "deepseek-v4-flash"
+        elif self.provider == "qwen":
+            self.api_base = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            self.api_key = settings.dashscope_api_key
+            self.model = settings.qwen_model or "qwen-plus"
+        else:
+            self.api_base = settings.openai_api_base.rstrip("/")
+            self.api_key = settings.openai_api_key
+            self.model = settings.openai_model or "gpt-4o"
+
         self.mock_mode = settings.mock_ai_pipeline or not bool(self.api_key)
+
+    async def call_chat(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.2,
+        max_tokens: int = 4096
+    ) -> str:
+        self._refresh_provider_config()
+        if self.mock_mode or not self.api_key:
+            return ""
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            resp = await client.post(f"{self.api_base}/chat/completions", headers=headers, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
 
     async def analyze_blocks(
         self,
@@ -18,11 +58,12 @@ class ModelGateway:
         focus_areas: Optional[List[str]] = None,
         checklists: Optional[List[Any]] = None
     ) -> List[Dict[str, Any]]:
+        self._refresh_provider_config()
         if not self.mock_mode and self.api_key:
             try:
                 return await self._call_llm_analyze(blocks, stance, focus_areas, checklists)
             except Exception as e:
-                # Fall back to intelligent rule engine if remote LLM call fails
+                print(f"[ModelGateway] Remote LLM ({self.provider}/{self.model}) failed, falling back to intelligent rule engine: {e}")
                 return self._intelligent_legal_analyze(blocks, stance, focus_areas, checklists)
         return self._intelligent_legal_analyze(blocks, stance, focus_areas, checklists)
 
@@ -48,8 +89,13 @@ class ModelGateway:
                 )
             chk_desc = "\n业务审查清单与定制 Prompt 指令集如下：\n" + "\n".join(chk_lines)
 
-        prompt = (
-            f"作为资深企业法务专家，请从【{stance}】立场深度审查以下真实合同条款。\n"
+        system_prompt = (
+            f"你是企业法务专家审查系统，深度结合 DeepSeek 与国内合规法典体系。\n"
+            f"当前审查立场：【{stance}】。\n"
+            f"当前使用的 AI 推理引擎：【{self.provider.upper()} - {self.model}】。"
+        )
+        user_prompt = (
+            f"请从【{stance}】立场深度审查以下真实合同条款。\n"
             f"业务关注重点：{focus_areas or '全面合规风险'}\n"
             f"{chk_desc}\n"
             "请严格对照上述审查清单标准与合同原文进行条款级风险研判。\n"
@@ -63,22 +109,18 @@ class ModelGateway:
             "replacement_text (修改后的修订推荐表述)\n\n"
             f"待审查合同段落列表：\n{json.dumps(blocks[:120], ensure_ascii=False)}"
         )
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2
-        }
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(f"{self.api_base}/chat/completions", headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-            return json.loads(content)
+        content = await self.call_chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.1
+        )
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        return json.loads(content)
 
     def _intelligent_legal_analyze(
         self,

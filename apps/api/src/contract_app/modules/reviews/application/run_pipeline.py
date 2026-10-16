@@ -14,160 +14,45 @@ from contract_app.modules.issues.domain.issue_group import IssueGroup
 from contract_app.modules.revisions.domain.revision_plan import RevisionPlan
 from contract_app.modules.revisions.domain.operation import RevisionOperation
 
+from contract_app.shared.errors import ReviewCancelledError, ReviewTimeoutError
+from contract_app.infrastructure.events.event_bus import event_bus
+from contract_app.infrastructure.persistence.repositories import repo_store
+from contract_app.modules.reviews.domain.review_state import ReviewStatus
+from contract_app.modules.reviews.application.graph.review_graph import review_graph_app
+
 class RunPipelineUseCase:
     async def execute(self, run_id: str):
         run = await repo_store.get_review_run(run_id)
         if not run:
             return
 
+        initial_state = {
+            "run_id": run.id,
+            "contract_id": run.contract_id,
+            "input_version_id": run.input_version_id,
+            "stance": run.stance,
+            "focus_areas": run.focus_areas,
+            "attempt": run.attempt,
+            "blocks": [],
+            "raw_findings": [],
+            "valid_findings": [],
+            "issue_groups": []
+        }
+
         try:
-            # Stage 1: prepare_snapshot
-            await self._step_start(run, PipelineStage.PREPARE_SNAPSHOT, "准备不可变审查快照")
-            version = await repo_store.get_version(run.input_version_id)
-            if not version:
-                raise ValueError(f"Input version {run.input_version_id} not found")
-            await asyncio.sleep(0.3)
-            await self._step_done(run, PipelineStage.PREPARE_SNAPSHOT)
-
-            # Stage 2: build_context
-            await self._step_start(run, PipelineStage.BUILD_CONTEXT, "提取合同条款结构与上下文")
-            blocks = docx_service.extract_structure(version.object_key)
-            await asyncio.sleep(0.4)
-            await self._step_done(run, PipelineStage.BUILD_CONTEXT, {"block_count": len(blocks)})
-
-            # Stage 3: analyze_clauses
-            await self._step_start(run, PipelineStage.ANALYZE_CLAUSES, "多维度条款风险分析")
-            contract = await repo_store.get_contract(run.contract_id)
-            checklist_items = []
-            if contract and contract.checklist_ids:
-                for cid in contract.checklist_ids:
-                    chk = await repo_store.get_checklist(cid)
-                    if chk:
-                        checklist_items.append(chk)
-
-            raw_findings = await model_gateway.analyze_blocks(
-                blocks=blocks,
-                stance=run.stance,
-                focus_areas=run.focus_areas,
-                checklists=checklist_items
-            )
-
-            # Publish streaming provisional public summaries
-            for idx, f in enumerate(raw_findings):
-                self._check_cancellation_and_deadline(run)
-                await event_bus.publish(
-                    run.id,
-                    "analysis_provisional",
-                    {
-                        "item_id": f"draft_{idx+1}",
-                        "clause_id": f["clause_id"],
-                        "title": f["title"],
-                        "severity": f["severity"],
-                        "evidence": f["evidence"],
-                        "public_analysis": f["public_analysis"],
-                        "proposal": f["proposal"],
-                        "provisional": True
-                    },
-                    attempt=run.attempt
-                )
-                await asyncio.sleep(0.15)
-            await self._step_done(run, PipelineStage.ANALYZE_CLAUSES, {"finding_count": len(raw_findings)})
-
-            # Stage 4: validate_findings
-            await self._step_start(run, PipelineStage.VALIDATE_FINDINGS, "校验原文依据与改写边界")
-            valid_findings = [f for f in raw_findings if f.get("evidence") and f.get("title")]
-            await asyncio.sleep(0.2)
-            await self._step_done(run, PipelineStage.VALIDATE_FINDINGS)
-
-            # Stage 5: consolidate_issues
-            await self._step_start(run, PipelineStage.CONSOLIDATE_ISSUES, "归并条款级问题组")
-            issue_groups: List[IssueGroup] = []
-            for idx, vf in enumerate(valid_findings):
-                ig = IssueGroup(
-                    run_id=run.id,
-                    clause_title=vf["clause_id"],
-                    severity=vf["severity"],
-                    risk_points=[vf["title"]],
-                    evidence=vf["evidence"],
-                    public_analysis=vf["public_analysis"],
-                    proposal=vf["proposal"],
-                    anchors=[vf["evidence"][:30]]
-                )
-                issue_groups.append(ig)
-            await repo_store.save_issue_groups(run.id, issue_groups)
-            await asyncio.sleep(0.2)
-            await self._step_done(run, PipelineStage.CONSOLIDATE_ISSUES, {"group_count": len(issue_groups)})
-
-            # Stage 6: compose_revisions
-            await self._step_start(run, PipelineStage.COMPOSE_REVISIONS, "组装原生修订操作与建议文档")
-            plan = RevisionPlan(review_run_id=run.id, base_version_id=version.id)
-            for idx, vf in enumerate(valid_findings):
-                op = RevisionOperation(
-                    plan_id=plan.id,
-                    issue_group_id=issue_groups[idx].id if idx < len(issue_groups) else "",
-                    kind="replace",
-                    anchor=vf["clause_id"],
-                    expected_text=vf.get("expected_text", vf["evidence"]),
-                    replacement_text=vf.get("replacement_text", vf["evidence"]),
-                    public_reason=vf["proposal"]
-                )
-                plan.operations.append(op)
-            await repo_store.save_revision_plan(plan)
-
-            # Generate proposed version DOCX
-            prop_key, prop_hash = docx_service.apply_revision_plan(version.object_key, plan, clean=False)
-            ai_version = DocumentVersion(
-                contract_id=run.contract_id,
-                parent_id=version.id,
-                kind="ai_proposal",
-                object_key=prop_key,
-                content_hash=prop_hash,
-                created_by="系统合规审查",
-                review_run_id=run.id,
-                summary=f"审查修订建议稿 (包含 {len(plan.operations)} 处建议修改)",
-                revision_count=len(plan.operations)
-            )
-            await repo_store.save_version(ai_version)
-            await self._step_done(run, PipelineStage.COMPOSE_REVISIONS, {"plan_id": plan.id})
-
-            # Stage 7: publish_result
-            await self._step_start(run, PipelineStage.PUBLISH_RESULT, "发布审查成果并同步工作副本")
-            run.succeed(result_version_id=ai_version.id, plan_id=plan.id)
-            await repo_store.save_review_run(run)
-
-            # Update contract
-            contract = await repo_store.get_contract(run.contract_id)
-            if contract:
-                contract.set_review_run(run.id)
-                contract.advance_head(ai_version.id)
-                contract.review_status = "reviewed"
-                await repo_store.save_contract(contract)
-
-            await event_bus.publish(
-                run.id,
-                "succeeded",
-                {
-                    "run_id": run.id,
-                    "result_version_id": ai_version.id,
-                    "plan_id": plan.id,
-                    "issue_count": len(issue_groups),
-                    "revision_count": len(plan.operations)
-                },
-                attempt=run.attempt
-            )
-
+            # 执行编译后的 LangGraph 状态图工作流
+            final_state = await review_graph_app.ainvoke(initial_state)
+            if final_state.get("error"):
+                raise RuntimeError(final_state["error"])
         except ReviewCancelledError:
             run.status = ReviewStatus.CANCELLED
             await repo_store.save_review_run(run)
-            await event_bus.publish(run.id, "cancelled", {"run_id": run.id, "message": "任务已取消"})
+            await event_bus.publish(run.id, "cancelled", {"run_id": run.id, "message": "任务已取消"}, attempt=run.attempt)
         except Exception as e:
             run.fail("PIPELINE_ERROR", str(e))
             await repo_store.save_review_run(run)
-            await event_bus.publish(run.id, "failed", {"run_id": run.id, "error": str(e)})
+            await event_bus.publish(run.id, "failed", {"run_id": run.id, "error": str(e)}, attempt=run.attempt)
 
-    def _check_cancellation_and_deadline(self, run: ReviewRun):
-        if run.is_cancelled():
-            raise ReviewCancelledError(run.id)
         if now_utc() >= run.deadline:
             raise ReviewTimeoutError(run.id)
 

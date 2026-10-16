@@ -25,11 +25,23 @@ class AppSettings(BaseSettings):
     onlyoffice_internal_url: str = "http://localhost:8080"
     onlyoffice_secret: str = "contract_reviewer_secret_jwt"
 
-    # AI Model Gateway
+    # AI Model Gateway & Domestic LLM Providers
+    llm_provider: str = "deepseek"  # "deepseek" | "qwen" | "openai" | "custom"
+    
+    # DeepSeek (支持 DeepSeek 官方或硅基流动等兼容中继)
+    deepseek_api_base: str = "https://api.deepseek.com/v1"
+    deepseek_api_key: str = ""
+    deepseek_model: str = "deepseek-v4-flash"  # 支持 deepseek-v4-flash, deepseek-chat, deepseek-reasoner
+
+    # Qwen (阿里百炼 DashScope / 通义千问)
+    dashscope_api_key: str = ""
+    qwen_model: str = "qwen-plus"
+
+    # OpenAI / 通用标准兼容网关
     openai_api_base: str = "https://api.openai.com/v1"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
-    mock_ai_pipeline: bool = True
+    mock_ai_pipeline: bool = True  # 当未填写有效 API Key 时自动平滑回退至智能规则/离线降级引擎
 
     # Review Pipeline limits
     max_review_retries: int = 3
