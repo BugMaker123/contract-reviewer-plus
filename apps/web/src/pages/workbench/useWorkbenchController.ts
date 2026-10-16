@@ -180,7 +180,8 @@ export function useWorkbenchController(contractId: string) {
 
   const locateAnchor = (anchor: string) => {
     activeAnchor.value = anchor;
-    const el = document.getElementById(`block-${anchor}`);
+    const cleanId = anchor.replace(/^(?:条款|第)\s*/, '').replace(/条$/, '').trim();
+    const el = document.getElementById(`block-${anchor}`) || document.getElementById(`block-${cleanId}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }

@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能合同审查工作台 · 极简减法设计原型 V2</title>
+  <style>
+    :root {
+      --bg-app: #f1f5f9;
+      --bg-paper: #ffffff;
+      --bg-canvas: #cbd5e1;
+      --text-main: #0f172a;
+      --text-sub: #64748b;
+      --border-color: #e2e8f0;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --success: #16a34a;
+      --success-hover: #15803d;
+      --success-light: #f0fdf4;
+      --danger: #dc2626;
+      --danger-light: #fef2f2;
+      --warning: #d97706;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-doc: "SimSun", "宋体", "STSong", "Microsoft YaHei", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--bg-app);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ================= 1. 顶部导航栏 ================= */
+    .top-navbar {
+      height: 56px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      z-index: 30;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .btn-back {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: #ffffff;
+      color: var(--text-sub);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-back:hover {
+      background: #f8fafc;
+      color: var(--text-main);
+      border-color: #cbd5e1;
+    }
+
+    .doc-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .doc-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+      max-width: 280px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #fef3c7;
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+    .status-pill .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #f59e0b;
+    }
+
+    /* 快捷风险定位器（上一处 / 下一处） */
+    .issue-navigator {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: #f8fafc;
+      border: 1px solid var(--border-color);
+      padding: 2px 4px;
+      border-radius: 6px;
+      margin-left: 6px;
+    }
+    .btn-nav-step {
+      border: none;
+      background: transparent;
+      color: var(--text-sub);
+      cursor: pointer;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .btn-nav-step:hover {
+      background: #e2e8f0;
+      color: var(--text-main);
+    }
+    .nav-step-index {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary);
+      padding: 0 4px;
+      min-width: 32px;
+      text-align: center;
+    }
+
+    /* 中部：三种视图切换分段器 */
+    .nav-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .view-segmented-control {
+      display: flex;
+      background: #f1f5f9;
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .segment-btn {
+      padding: 5px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      color: var(--text-sub);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .segment-btn:hover {
+      color: var(--text-main);
+    }
+    .segment-btn.active {
+      background: #ffffff;
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      font-weight: 600;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-action {
+      height: 34px;
+      padding: 0 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-secondary {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+    .btn-secondary:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      border: 1px solid var(--primary);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    /* ================= 2. 核心工作区主布局 ================= */
+    .workspace-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* 左侧主视口：合同白纸画布 (纯净无截断，70% 黄金视野) */
+    .editor-viewport {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--bg-canvas);
+      padding: 40px 24px 140px;
+      display: block;
+      transition: all 0.3s ease;
+      scroll-behavior: smooth;
+    }
+
+    .document-paper {
+      width: 100%;
+      max-width: 840px;
+      min-height: 1160px;
+      height: auto;
+      margin: 0 auto;
+      background: var(--bg-paper);
+      color: #111827;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
+      border-radius: 3px;
+      border: 1px solid #cbd5e1;
+      padding: 68px 76px 100px;
+      font-family: var(--font-doc);
+      font-size: 16px;
+      line-height: 1.72;
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    .contract-title {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      letter-spacing: 2px;
+      color: #000000;
+    }
+
+    .contract-clause {
+      margin-bottom: 5px;
+      padding: 3px 6px;
+      position: relative;
+      border-radius: 3px;
+      transition: background 0.25s ease, border-color 0.25s ease;
+    }
+
+    .contract-clause.has-indent {
+      text-indent: 2em;
+    }
+
+    .contract-clause.is-heading {
+      font-weight: 700;
+      font-size: 16px;
+      color: #0f172a;
+      margin-top: 20px;
+      margin-bottom: 8px;
+    }
+
+    /* 优化点 3：在正文右侧放置引线批注卡片 (大字体、加粗展示) */
+    .risk-callout-right {
+      position: absolute;
+      left: calc(100% + 18px);
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      z-index: 15;
+      cursor: pointer;
+      text-indent: 0;
+      user-select: none;
+    }
+
+    .callout-line {
+      width: 18px;
+      height: 2px;
+      background: #ef4444;
+      display: inline-block;
+      margin-right: -1px;
+    }
+
+    .callout-content {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ffffff;
+      border: 2px solid #ef4444;
+      color: #dc2626;
+      font-family: var(--font-ui);
+      font-size: 15px; /* 加大字体 */
+      font-weight: 700; /* 加粗展示 */
+      padding: 6px 14px;
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.18), 0 2px 4px rgba(0,0,0,0.06);
+      white-space: nowrap;
+      letter-spacing: 0.5px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .risk-callout-right:hover .callout-content {
+      background: #fef2f2;
+      border-color: #dc2626;
+      color: #b91c1c;
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(220, 38, 38, 0.25);
+    }
+
+    .contract-clause.active-focus {
+      background: rgba(99, 102, 241, 0.12) !important;
+      outline: 2px solid #6366f1;
+      border-left-color: #6366f1;
+    }
+
+    /* Word 修订样式 */
+    .track-del {
+      color: #dc2626;
+      text-decoration: line-through;
+      text-decoration-thickness: 1.5px;
+      background: #fef2f2;
+      padding: 0 2px;
+      border-radius: 2px;
+    }
+
+    .track-ins {
+      color: #1d4ed8;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-thickness: 1.5px;
+      background: #eff6ff;
+      padding: 0 2px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+
+    /* ================= 3. 右侧：AI 智能审查侧边栏 ================= */
+    .assistant-sidebar {
+      width: 390px;
+      background: #ffffff;
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      box-shadow: -2px 0 8px rgba(0,0,0,0.03);
+      transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      z-index: 20;
+    }
+
+    .assistant-sidebar.collapsed {
+      width: 0;
+      overflow: hidden;
+      border-left: none;
+    }
+
+    /* 侧栏收起时悬浮按钮 */
+    .sidebar-toggle-btn {
+      position: absolute;
+      top: 14px;
+      left: -15px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-sub);
+      transition: all 0.2s;
+      z-index: 25;
+    }
+    .sidebar-toggle-btn:hover {
+      background: #f8fafc;
+      color: var(--primary);
+      transform: scale(1.05);
+    }
+
+    .sidebar-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #ffffff;
+    }
+
+    .sidebar-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .sidebar-title-badge {
+      font-size: 12px;
+      font-weight: normal;
+      color: var(--text-sub);
+    }
+
+    .sidebar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-batch-accept {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--success);
+      background: var(--success-light);
+      border: 1px solid #bbf7d0;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-batch-accept:hover {
+      background: #dcfce7;
+    }
+
+    /* 风险卡片列表 */
+    .cards-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+
+    .risk-card {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px;
+      transition: all 0.2s ease;
+      position: relative;
+      cursor: pointer;
+    }
+    .risk-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+    }
+    .risk-card.active {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 1.5px #6366f1, 0 4px 12px rgba(99,102,241,0.08);
+      background: #fbfbfe;
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .card-top-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    .risk-badge.high {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fee2e2;
+    }
+    .risk-badge.medium {
+      background: #fffbeb;
+      color: #d97706;
+      border: 1px solid #fef3c7;
+    }
+
+    .clause-ref {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+
+    /* 优化点 1：卡片上的明确「定位条款」按钮 */
+    .btn-locate {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--primary);
+      background: var(--primary-light);
+      border: 1px solid #dbeafe;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-locate:hover {
+      background: #dbeafe;
+      border-color: #bfdbfe;
+    }
+
+    .card-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .card-diff-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12.5px;
+      line-height: 1.55;
+      margin-bottom: 10px;
+    }
+
+    .diff-label {
+      font-size: 11px;
+      color: var(--text-sub);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn-card {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 14px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
+    }
+
+    /* 重新生成按钮样式 */
+    .btn-card.regenerate {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+      font-weight: 500;
+    }
+    .btn-card.regenerate:hover {
+      background: #eff6ff;
+      border-color: #93c5fd;
+      color: #1d4ed8;
+    }
+    .btn-card.regenerate.loading svg {
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes flashGlow {
+      0% { background: #dbeafe; }
+      50% { background: #bfdbfe; }
+      100% { background: transparent; }
+    }
+
+    /* 优化点 2：采纳与拒绝换位：采纳在前（绿色主按钮），拒绝在后（灰框轻量） */
+    .btn-card.accept {
+      background: var(--success);
+      color: #ffffff;
+    }
+    .btn-card.accept:hover {
+      background: var(--success-hover);
+    }
+
+    .btn-card.reject {
+      background: #ffffff;
+      border-color: #e2e8f0;
+      color: #64748b;
+    }
+    .btn-card.reject:hover {
+      background: #fef2f2;
+      color: #dc2626;
+      border-color: #fecaca;
+    }
+
+    .risk-card.accepted {
+      border-left: 3px solid #16a34a;
+      background: #f0fdf4;
+      opacity: 0.85;
+    }
+    .risk-card.rejected {
+      border-left: 3px solid #94a3b8;
+      background: #f8fafc;
+      opacity: 0.7;
+    }
+
+    /* 悬浮轻量指示栏（当右侧折叠时弹出） */
+    .floating-fab {
+      position: fixed;
+      right: 20px;
+      bottom: 24px;
+      background: var(--primary);
+      color: #ffffff;
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(37,99,235,0.3);
+      cursor: pointer;
+      z-index: 40;
+    }
+    .floating-fab:hover {
+      transform: translateY(-2px);
+    }
+    .floating-fab.visible {
+      display: flex;
+    }
+
+    /* 设计升级说明提示栏 */
+    .design-note-bar {
+      background: #0f172a;
+      color: #cbd5e1;
+      padding: 7px 18px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+    }
+    .design-note-bar strong {
+      color: #38bdf8;
+    }
+    .design-pill-tag {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 设计升级说明提示条 -->
+  <div class="design-note-bar">
+    <div>
+      <strong>✨ 根据您的反馈已全面优化：</strong>
+      <span>①「建议修订」标签移至正文右侧红框位置，加大字体加粗展示 ②采纳左侧增加「重新生成」按钮 ③正文与右侧卡片智能滚动联动！</span>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <span class="design-pill-tag">✅ 右侧引线指示</span>
+      <span class="design-pill-tag">✅ AI 重新生成</span>
+      <span class="design-pill-tag">✅ 快捷键 Alt+↑/↓</span>
+    </div>
+  </div>
+
+  <!-- 1. 顶部导航栏 -->
+  <header class="top-navbar">
+    <div class="nav-left">
+      <button class="btn-back" title="返回列表" onclick="alert('返回合同列表')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+      </button>
+
+      <div class="doc-info">
+        <h1 class="doc-title" title="山东凤邦-集采品种-董书华+(1).docx">山东凤邦-集采品种-董书华+(1)</h1>
+        
+        <!-- 待处理状态胶囊 -->
+        <div class="status-pill" id="statusPill">
+          <span class="dot"></span>
+          <span id="pendingCount">2 处待复核</span>
+        </div>
+
+        <!-- 优化点 1：顶部上一处/下一处风险定位器 -->
+        <div class="issue-navigator" title="在各处风险点之间快速切换">
+          <button class="btn-nav-step" onclick="prevIssue()" title="上一处风险 (Alt+↑)">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+            上一处
+          </button>
+          <span class="nav-step-index" id="navIndexLabel">1 / 2</span>
+          <button class="btn-nav-step" onclick="nextIssue()" title="下一处风险 (Alt+↓)">
+            下一处
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中部模式切换 -->
+    <div class="nav-center">
+      <div class="view-segmented-control">
+        <button class="segment-btn active" id="btnModeMarkup" onclick="switchMode('markup')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+          全部修订标记
+        </button>
+        <button class="segment-btn" id="btnModeOriginal" onclick="switchMode('original')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          原始文本
+        </button>
+        <button class="segment-btn" id="btnModeClean" onclick="switchMode('clean')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+          最终清洁效果
+        </button>
+      </div>
+    </div>
+
+    <!-- 右侧操作栏 -->
+    <div class="nav-right">
+      <button class="btn-action btn-secondary" onclick="alert('触发智能重新审查')">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        重新审查
+      </button>
+      <button class="btn-action btn-secondary" onclick="alert('已保存当前修改')">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+        保存
+      </button>
+      <button class="btn-action btn-primary" onclick="alert('导出最终修订版 Word (.docx)')">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        导出 Word ▾
+      </button>
+    </div>
+  </header>
+
+  <!-- 2. 主体工作区 -->
+  <main class="workspace-body">
+
+    <!-- 2.1 文档主阅读视口 (70% 宽，白底纯净无截断) -->
+    <section class="editor-viewport" id="docViewport">
+      <article class="document-paper" id="docPaper">
+        
+        <h1 class="contract-title">年度采购协议</h1>
+
+        <p class="contract-clause">甲方（供方）：山东某某医药有限公司</p>
+        <p class="contract-clause">法定代表人：张三</p>
+        <p class="contract-clause">地址：山东省济南市历下区高新产业园16号</p>
+        <p class="contract-clause">乙方（需方）：北京某某健康科技有限公司</p>
+        <p class="contract-clause">法定代表人：李四</p>
+        <p class="contract-clause" style="margin-bottom: 24px;">地址：北京市海淀区中关村南大街1号</p>
+
+        <p class="contract-clause has-indent">
+          为适应当前医药市场的发展，甲、乙双方本着真诚合作、共同发展、互利双赢的宗旨，根据《中华人民共和国民法典》及相关法律法规的规定，经友好协商就乙方采购甲方产品的具体事宜签署本协议：
+        </p>
+
+        <h2 class="contract-clause is-heading has-indent">一、前提条件</h2>
+
+        <p class="contract-clause has-indent">
+          1.1 本合同的签署以甲、乙双方均具备从事本协议项下之业务所需且有效的资质为前提，双方均需相互提供加盖公章的资质证件的复印件、相关人员授权委托书原件及身份证复印件等材料。
+        </p>
+
+        <p class="contract-clause has-indent">
+          1.2 双方在此郑重声明，保证出示的各项“证件、资料”均真实、合法、有效，不存在任何虚假、伪造的情形，否则承担由此给对方造成的全部损失。
+        </p>
+
+        <!-- 风险点 1：条款 1.3 -->
+        <p class="contract-clause has-indent has-risk active-focus" id="para-1-3" onclick="onClauseClick('1-3')">
+          1.3 一方若变更上述证件及资料，应在15日内书面告知对方，并向对方重新提交变更后的证件及资料。如因一方未及时提交变更后的证件及资料而给对方造成经济损失的，由违约方承担全部赔偿责任。
+          <span id="diff-1-3">
+            <ins class="track-ins">（但任何一方因违约承担的赔偿责任累计不得超过本合同总金额的100%，且赔偿范围仅限守约方的直接实际经济损失，明确排除任何预期利润、商业机会及间接衍生损失）。</ins>
+          </span>
+
+          <!-- 红框位置：正文右侧大字加粗引线标签 -->
+          <span class="risk-callout-right" onclick="event.stopPropagation(); onClauseClick('1-3')" title="点击查看 AI 审查建议详情">
+            <span class="callout-line"></span>
+            <span class="callout-content">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              建议修订
+            </span>
+          </span>
+        </p>
+
+        <p class="contract-clause has-indent">
+          1.4 本协议的“产品”指：甲方经营范围内的各种药品、医疗器械、特殊医学用途配方食品等所有产品。
+        </p>
+
+        <h2 class="contract-clause is-heading has-indent">二、合作期限</h2>
+
+        <p class="contract-clause has-indent">
+          双方约定，本协议期限自 2026年 09月 01日起至 2027年 12月 31日止。合同期满后双方优先续签下一年度协议。
+        </p>
+
+        <h2 class="contract-clause is-heading has-indent">三、经销区域</h2>
+
+        <p class="contract-clause has-indent">
+          甲、乙双方约定，甲方授权乙方经销区域为 山东省 区域。
+        </p>
+
+        <h2 class="contract-clause is-heading has-indent">四、授权经销品种、供货价格、销售价格</h2>
+
+        <p class="contract-clause has-indent">
+          4.1 甲方授权经销品种、甲方供货价格、乙方销售价格见附件一；若山东省药械采购平台的挂网价格发生调整，甲方应于价格调整前3日内书面通知乙方和乙方所销售客户，甲乙双方另行协商乙方销售价格（即医院执行的价格），调整后的价格不能高于山东省药械采购平台的挂网价，具体价格由双方另行书面约定。若甲方未能及时书面通知乙方及乙方所销售客户，导致乙方销售价格未能及时变更，由此给乙方所销售客户（即医院）造成损失的，甲方应全额承担。
+        </p>
+
+        <p class="contract-clause has-indent">
+          4.2 甲、乙双方在本协议的基础上，另行签订“批次合同”作为本协议的组成部分，“批次合同”约定与本协议约定不一致的以本协议为准，“批次合同”扫描件有效。
+        </p>
+
+        <p class="contract-clause has-indent">
+          4.3 如因甲方出现中标价下调情况，需对乙方及乙方下游库存按附件中的对应毛利率进行返差并开具红字发票。
+        </p>
+
+        <h2 class="contract-clause is-heading has-indent">五、付款时间、付款方式</h2>
+
+        <p class="contract-clause has-indent">
+          5.1 本协议项下的结算与支付均通过银行电汇方式办理。
+        </p>
+
+        <h2 class="contract-clause is-heading has-indent">六、验收与违约责任</h2>
+
+        <p class="contract-clause has-indent">
+          6.1 甲方负责将货物安全运抵乙方指定收货地址，运输费用由甲方承担。
+        </p>
+
+        <p class="contract-clause has-indent">
+          6.2 货物到站后，乙方应在3日内组织验收，验收内容包括外包装、规格、数量及批号。
+        </p>
+
+        <!-- 风险点 2：条款 6.3 -->
+        <p class="contract-clause has-indent has-risk" id="para-6-3" onclick="onClauseClick('6-3')">
+          6.3 乙方对有异议的货物有权拒收。若选择先收货/提货，乙方授权收货人员应在相关送货凭证上注明后做好详细记录，并及时通知甲方，同时提供详细情况，如：产品名称、批号、发票号、到货日期、应到数量及实到数量等。甲方应在收到乙方通知之日起7日内负责退货或者换货。
+          <span id="diff-6-3">
+            <ins class="track-ins">甲方应于验收合格且收到合规增值税专用发票后15个工作日内付清货款。</ins>
+          </span>
+
+          <!-- 红框位置：正文右侧大字加粗引线标签 -->
+          <span class="risk-callout-right" onclick="event.stopPropagation(); onClauseClick('6-3')" title="点击查看 AI 审查建议详情">
+            <span class="callout-line"></span>
+            <span class="callout-content">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              建议修订
+            </span>
+          </span>
+        </p>
+
+        <p class="contract-clause has-indent">
+          6.4 双方发生争议的，应友好协商解决；协商不成的，由原告住所地人民法院管辖。
+        </p>
+
+        <p class="contract-clause has-indent" style="margin-top: 30px;">
+          （以下无正文，为本合同签署页）
+        </p>
+
+      </article>
+    </section>
+
+    <!-- 2.2 右侧：统一智能审查面板 (做减法，随左侧文章滚动自动展示对应卡片) -->
+    <aside class="assistant-sidebar" id="assistantSidebar">
+      <!-- 侧边栏折叠/展开触发按钮 -->
+      <button class="sidebar-toggle-btn" id="toggleSidebarBtn" title="折叠/展开审查面板" onclick="toggleSidebar()">
+        <svg id="toggleIcon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      </button>
+
+      <!-- 侧边栏头部 -->
+      <div class="sidebar-header">
+        <div class="sidebar-title">
+          <span>AI 审查建议</span>
+          <span class="sidebar-title-badge" id="cardCounter">共 2 项建议</span>
+        </div>
+        <div class="sidebar-actions">
+          <button class="btn-batch-accept" onclick="batchAcceptAll()">一键全部采纳</button>
+        </div>
+      </div>
+
+      <!-- 审查建议卡片容器 -->
+      <div class="cards-container" id="cardsContainer">
+
+        <!-- 卡片 1 (条款 1.3) -->
+        <div class="risk-card active" id="card-1-3" onclick="focusClause('para-1-3', 'card-1-3')">
+          <div class="card-top">
+            <div class="card-top-left">
+              <span class="risk-badge high">高风险</span>
+              <span class="clause-ref">条款 1.3</span>
+            </div>
+            <!-- 优化点 1：明确的定位条款按钮 -->
+            <button class="btn-locate" onclick="event.stopPropagation(); focusClause('para-1-3', 'card-1-3')">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              定位正文
+            </button>
+          </div>
+          <div class="card-title">违约金责任上限与直接损失界定</div>
+          <p style="font-size:12px; color:#475569; margin-bottom: 8px;">
+            违约赔偿责任未明确封顶上限并排除间接损失，可能导致不可预见的巨额连带索赔。
+          </p>
+
+          <div class="card-diff-box">
+            <div class="diff-label">建议补充条款：</div>
+            <div style="color: #1d4ed8; font-weight: 500;">
+              + （但任何一方因违约承担的赔偿责任累计不得超过本合同总金额的100%，且赔偿范围仅限守约方的直接实际经济损失，明确排除任何预期利润、商业机会及间接衍生损失）。
+            </div>
+          </div>
+
+          <!-- 优化点：采纳左侧增加重新生成按钮 -->
+          <div class="card-actions">
+            <button class="btn-card regenerate" id="btn-regen-1-3" onclick="event.stopPropagation(); handleRegenerate('1-3')" title="让 AI 重新撰写修订建议">
+              <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              重新生成
+            </button>
+            <button class="btn-card accept" onclick="event.stopPropagation(); handleDecision('1-3', 'accept')">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              采纳修改
+            </button>
+            <button class="btn-card reject" onclick="event.stopPropagation(); handleDecision('1-3', 'reject')">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              拒绝
+            </button>
+          </div>
+        </div>
+
+        <!-- 卡片 2 (条款 6.3) -->
+        <div class="risk-card" id="card-6-3" onclick="focusClause('para-6-3', 'card-6-3')">
+          <div class="card-top">
+            <div class="card-top-left">
+              <span class="risk-badge high">高风险</span>
+              <span class="clause-ref">条款 6.3</span>
+            </div>
+            <!-- 优化点 1：明确的定位条款按钮 -->
+            <button class="btn-locate" onclick="event.stopPropagation(); focusClause('para-6-3', 'card-6-3')">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              定位正文
+            </button>
+          </div>
+          <div class="card-title">付款节点与验收先决条件明确</div>
+          <p style="font-size:12px; color:#475569; margin-bottom: 8px;">
+            付款条款未明确绑定阶段性合格验收凭据与合规发票，付款被动风险高。
+          </p>
+
+          <div class="card-diff-box">
+            <div class="diff-label">建议补充条款：</div>
+            <div style="color: #1d4ed8; font-weight: 500;">
+              + 甲方应于验收合格且收到合规增值税专用发票后15个工作日内付清货款。
+            </div>
+          </div>
+
+          <!-- 优化点：采纳左侧增加重新生成按钮 -->
+          <div class="card-actions">
+            <button class="btn-card regenerate" id="btn-regen-6-3" onclick="event.stopPropagation(); handleRegenerate('6-3')" title="让 AI 重新撰写修订建议">
+              <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              重新生成
+            </button>
+            <button class="btn-card accept" onclick="event.stopPropagation(); handleDecision('6-3', 'accept')">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+              采纳修改
+            </button>
+            <button class="btn-card reject" onclick="event.stopPropagation(); handleDecision('6-3', 'reject')">
+              <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              拒绝
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- 侧栏收起后的快捷浮动唤起胶囊 -->
+  <div class="floating-fab" id="floatingFab" onclick="toggleSidebar()">
+    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+    <span id="fabText">查看 2 处审查建议</span>
+  </div>
+
+  <script>
+    const issueList = ['1-3', '6-3'];
+    let currentIssueIndex = 0;
+
+    const decisions = {
+      '1-3': 'pending',
+      '6-3': 'pending'
+    };
+
+    let currentViewMode = 'markup';
+    let isSidebarOpen = true;
+    let isProgrammaticScroll = false;
+
+    // 优化点 4：核心“左右联动”ScrollSpy 功能
+    // 监听左侧文档视口滚动，当风险条款进入视口时，右侧卡片自动跟随展示高亮
+    function setupScrollSpy() {
+      const viewport = document.getElementById('docViewport');
+      const clauses = [
+        { id: '1-3', el: document.getElementById('para-1-3') },
+        { id: '6-3', el: document.getElementById('para-6-3') }
+      ];
+
+      viewport.addEventListener('scroll', () => {
+        if (isProgrammaticScroll) return;
+
+        const viewportRect = viewport.getBoundingClientRect();
+        const triggerLine = viewportRect.top + viewportRect.height * 0.35; // 视口中上部焦点线
+
+        let closestId = null;
+        let minDistance = Infinity;
+
+        clauses.forEach((item, idx) => {
+          if (!item.el) return;
+          const rect = item.el.getBoundingClientRect();
+          const dist = Math.abs(rect.top - triggerLine);
+          if (dist < minDistance && rect.bottom > viewportRect.top && rect.top < viewportRect.bottom) {
+            minDistance = dist;
+            closestId = item.id;
+          }
+        });
+
+        if (closestId) {
+          syncCardActive(closestId, false);
+        }
+      }, { passive: true });
+    }
+
+    // 保持右侧卡片与当前激活的风险点同步
+    function syncCardActive(id, scrollRight = true) {
+      currentIssueIndex = issueList.indexOf(id);
+      document.getElementById('navIndexLabel').innerText = `${currentIssueIndex + 1} / ${issueList.length}`;
+
+      // 高亮左侧正文对应条款
+      document.querySelectorAll('.contract-clause').forEach(c => c.classList.remove('active-focus'));
+      const activeClause = document.getElementById(`para-${id}`);
+      if (activeClause) activeClause.classList.add('active-focus');
+
+      // 高亮右侧卡片
+      document.querySelectorAll('.risk-card').forEach(c => c.classList.remove('active'));
+      const activeCard = document.getElementById(`card-${id}`);
+      if (activeCard) {
+        activeCard.classList.add('active');
+        if (scrollRight) {
+          activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    }
+
+    // 点击正文条款跳转高亮右侧
+    function onClauseClick(id) {
+      syncCardActive(id, true);
+      if (!isSidebarOpen) toggleSidebar();
+    }
+
+    // 点击右侧卡片或“定位正文”按钮平滑滚动定位左侧文档
+    function focusClause(paraId, cardId) {
+      const id = cardId.replace('card-', '');
+      syncCardActive(id, true);
+
+      const targetPara = document.getElementById(paraId);
+      if (targetPara) {
+        isProgrammaticScroll = true;
+        targetPara.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          isProgrammaticScroll = false;
+        }, 500);
+      }
+    }
+
+    // 优化点 1：上一处/下一处风险快速导航
+    function prevIssue() {
+      if (currentIssueIndex > 0) {
+        currentIssueIndex--;
+      } else {
+        currentIssueIndex = issueList.length - 1;
+      }
+      const targetId = issueList[currentIssueIndex];
+      focusClause(`para-${targetId}`, `card-${targetId}`);
+    }
+
+    function nextIssue() {
+      if (currentIssueIndex < issueList.length - 1) {
+        currentIssueIndex++;
+      } else {
+        currentIssueIndex = 0;
+      }
+      const targetId = issueList[currentIssueIndex];
+      focusClause(`para-${targetId}`, `card-${targetId}`);
+    }
+
+    // 快捷键支持：Alt+↑ 上一处，Alt+↓ 下一处
+    window.addEventListener('keydown', (e) => {
+      if (e.altKey && e.key === 'ArrowUp') {
+        e.preventDefault();
+        prevIssue();
+      } else if (e.altKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        nextIssue();
+      }
+    });
+
+    // 视图模式切换
+    function switchMode(mode) {
+      currentViewMode = mode;
+      document.querySelectorAll('.segment-btn').forEach(btn => btn.classList.remove('active'));
+      if (mode === 'markup') document.getElementById('btnModeMarkup').classList.add('active');
+      if (mode === 'original') document.getElementById('btnModeOriginal').classList.add('active');
+      if (mode === 'clean') document.getElementById('btnModeClean').classList.add('active');
+
+      renderDocumentDiff();
+    }
+
+    function renderDocumentDiff() {
+      // 1.3
+      const diff1 = document.getElementById('diff-1-3');
+      if (currentViewMode === 'original') {
+        diff1.innerHTML = '';
+      } else if (currentViewMode === 'clean') {
+        if (decisions['1-3'] === 'accepted' || decisions['1-3'] === 'pending') {
+          diff1.innerHTML = '（但任何一方因违约承担的赔偿责任累计不得超过本合同总金额的100%，且赔偿范围仅限守约方的直接实际经济损失，明确排除任何预期利润、商业机会及间接衍生损失）。';
+        } else {
+          diff1.innerHTML = '';
+        }
+      } else {
+        if (decisions['1-3'] === 'rejected') {
+          diff1.innerHTML = '';
+        } else {
+          diff1.innerHTML = '<ins class="track-ins">（但任何一方因违约承担的赔偿责任累计不得超过本合同总金额的100%，且赔偿范围仅限守约方的直接实际经济损失，明确排除任何预期利润、商业机会及间接衍生损失）。</ins>';
+        }
+      }
+
+      // 6.3
+      const diff2 = document.getElementById('diff-6-3');
+      if (currentViewMode === 'original') {
+        diff2.innerHTML = '';
+      } else if (currentViewMode === 'clean') {
+        if (decisions['6-3'] === 'accepted' || decisions['6-3'] === 'pending') {
+          diff2.innerHTML = '甲方应于验收合格且收到合规增值税专用发票后15个工作日内付清货款。';
+        } else {
+          diff2.innerHTML = '';
+        }
+      } else {
+        if (decisions['6-3'] === 'rejected') {
+          diff2.innerHTML = '';
+        } else {
+          diff2.innerHTML = '<ins class="track-ins">甲方应于验收合格且收到合规增值税专用发票后15个工作日内付清货款。</ins>';
+        }
+      }
+    }
+
+    // 交互优化：让 AI 重新撰写修订建议
+    const regenTemplates = {
+      '1-3': [
+        '（双方确认：任何一方对本协议项下违约损失的赔偿总额以发生违约行为当年度协议结算总额为限，且任何一方均不就间接损失、利润损失、商誉损失或偶发性损害承担赔偿责任）。',
+        '（但任何一方因违约承担的赔偿责任累计不得超过本合同总金额的100%，且赔偿范围仅限守约方的直接实际经济损失，明确排除任何预期利润、商业机会及间接衍生损失）。',
+        '（除故意或重大过失外，违约方承担的赔偿金总额以本合同实际已支付价款为上限，双方明确互不追索对方的间接商业损失及预期利益）。'
+      ],
+      '6-3': [
+        '甲方付款以乙方货物通过双方联合阶段性实质验收并送达合法合规增值税专用发票为前提，自双方确认无误后10个工作日内电汇清偿。',
+        '甲方应于验收合格且收到合规增值税专用发票后15个工作日内付清货款。',
+        '付款先决条件：货物必须经甲方质量部出具《合格质检单》且乙方提供合规发票，付款周期为每季度末统一核销。'
+      ]
+    };
+    const regenIndexes = { '1-3': 0, '6-3': 0 };
+
+    function handleRegenerate(id) {
+      const btn = document.getElementById(`btn-regen-${id}`);
+      if (!btn || btn.classList.contains('loading')) return;
+
+      btn.classList.add('loading');
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = `
+        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        AI 重新撰写中...
+      `;
+
+      setTimeout(() => {
+        btn.classList.remove('loading');
+        btn.innerHTML = originalHtml;
+
+        // 切换下一版建议条款
+        regenIndexes[id] = (regenIndexes[id] + 1) % regenTemplates[id].length;
+        const newText = regenTemplates[id][regenIndexes[id]];
+
+        // 更新卡片内容
+        const card = document.getElementById(`card-${id}`);
+        if (card) {
+          const diffBox = card.querySelector('.card-diff-box div[style*="color"]');
+          if (diffBox) {
+            diffBox.innerHTML = `+ ${newText}`;
+            diffBox.style.animation = 'none';
+            void diffBox.offsetHeight; // trigger reflow
+            diffBox.style.animation = 'flashGlow 0.8s ease';
+          }
+        }
+
+        // 同步更新正文中的建议修订标记
+        const docDiff = document.getElementById(`diff-${id}`);
+        if (docDiff && currentViewMode !== 'original') {
+          docDiff.innerHTML = `<ins class="track-ins">${newText}</ins>`;
+        }
+
+        // 提示反馈
+        showToast(`✨ 条款 ${id.replace('-', '.')} 已重新生成新版建议修订！`);
+      }, 650);
+    }
+
+    function showToast(msg) {
+      let toast = document.getElementById('demoToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'demoToast';
+        toast.style.cssText = `
+          position: fixed;
+          top: 60px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #0f172a;
+          color: #ffffff;
+          padding: 8px 18px;
+          border-radius: 999px;
+          font-size: 13px;
+          font-weight: 500;
+          box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transition: opacity 0.3s ease, transform 0.3s ease;
+          pointer-events: none;
+        `;
+        document.body.appendChild(toast);
+      }
+      toast.innerText = msg;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(-10px)';
+      }, 2400);
+    }
+
+    // 采纳与拒绝处理
+    function handleDecision(id, action) {
+      decisions[id] = action === 'accept' ? 'accepted' : 'rejected';
+      const card = document.getElementById(`card-${id}`);
+      card.classList.remove('accepted', 'rejected');
+      card.classList.add(action === 'accept' ? 'accepted' : 'rejected');
+
+      const actionsDiv = card.querySelector('.card-actions');
+      if (action === 'accept') {
+        actionsDiv.innerHTML = `<span style="color:#16a34a; font-size:12px; font-weight:600;">✓ 已采纳修改</span>`;
+      } else {
+        actionsDiv.innerHTML = `<span style="color:#64748b; font-size:12px;">✗ 已驳回修改</span>`;
+      }
+
+      updatePendingCount();
+      renderDocumentDiff();
+    }
+
+    function batchAcceptAll() {
+      handleDecision('1-3', 'accept');
+      handleDecision('6-3', 'accept');
+      alert('已一键采纳所有建议！');
+    }
+
+    function updatePendingCount() {
+      const pending = Object.values(decisions).filter(v => v === 'pending').length;
+      const statusPill = document.getElementById('statusPill');
+      const pendingText = document.getElementById('pendingCount');
+      if (pending === 0) {
+        statusPill.style.background = '#dcfce7';
+        statusPill.style.color = '#15803d';
+        statusPill.style.borderColor = '#86efac';
+        statusPill.querySelector('.dot').style.background = '#22c55e';
+        pendingText.innerText = '已全部复核完毕';
+      } else {
+        pendingText.innerText = `${pending} 处待复核`;
+      }
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('assistantSidebar');
+      const fab = document.getElementById('floatingFab');
+      const icon = document.getElementById('toggleIcon');
+      isSidebarOpen = !isSidebarOpen;
+
+      if (isSidebarOpen) {
+        sidebar.classList.remove('collapsed');
+        fab.classList.remove('visible');
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>';
+      } else {
+        sidebar.classList.add('collapsed');
+        fab.classList.add('visible');
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>';
+      }
+    }
+
+    // 初始化滚动联动
+    window.onload = () => {
+      setupScrollSpy();
+    };
+  </script>
+</body>
+</html>

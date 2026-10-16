@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useWorkbenchController } from './useWorkbenchController';
 import WorkbenchToolbar from './WorkbenchToolbar.vue';
@@ -16,7 +16,8 @@ import { PanelLeftClose, PanelRightClose, PanelLeftOpen, PanelRightOpen } from '
 
 const route = useRoute();
 const contractId = route.params.id as string;
-const leftOpen = ref(true);
+// 页面做减法：默认收起左侧杂糅技术概览，正文与右侧审查建议占满视野
+const leftOpen = ref(false);
 const rightOpen = ref(true);
 
 const {
@@ -28,6 +29,61 @@ const {
   followupMode, activeIssue,
   loadContractData, startReview, cancelReview, applyDecision, locateAnchor
 } = useWorkbenchController(contractId);
+
+// 待复核数量计算
+const unreviewedCount = computed(() => {
+  return issues.value.filter(i => i.status === 'unreviewed' || i.status === 'partially_accepted').length;
+});
+
+// 当前风险点索引
+const currentIssueIndex = computed(() => {
+  if (!activeAnchor.value || issues.value.length === 0) return 0;
+  const idx = issues.value.findIndex(i => i.clause_title === activeAnchor.value || activeAnchor.value.includes(i.clause_title));
+  return idx >= 0 ? idx : 0;
+});
+
+// 上一处 / 下一处风险定位
+const prevIssue = () => {
+  if (issues.value.length === 0) return;
+  let nextIdx = currentIssueIndex.value - 1;
+  if (nextIdx < 0) nextIdx = issues.value.length - 1;
+  locateAnchor(issues.value[nextIdx].clause_title);
+};
+
+const nextIssue = () => {
+  if (issues.value.length === 0) return;
+  let nextIdx = currentIssueIndex.value + 1;
+  if (nextIdx >= issues.value.length) nextIdx = 0;
+  locateAnchor(issues.value[nextIdx].clause_title);
+};
+
+// 键盘快捷键支持：Alt+↑ / Alt+↓ 切换风险点
+const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.altKey && e.key === 'ArrowUp') {
+    e.preventDefault();
+    prevIssue();
+  } else if (e.altKey && e.key === 'ArrowDown') {
+    e.preventDefault();
+    nextIssue();
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown);
+});
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
+
+// 重新生成修改建议
+const handleRegenerate = async (issueId: string) => {
+  try {
+    await api.post(`/issue-groups/${issueId}/regenerate`);
+    await loadContractData();
+  } catch (err: any) {
+    console.error('Failed to regenerate proposal', err);
+  }
+};
 
 const handleExport = async (kind: string) => {
   const res: any = await api.post('/exports', { contract_id: contractId, kind });
@@ -48,6 +104,11 @@ const handleSaveDoc = async () => {
       :head-version="headVersion || undefined"
       :is-saving="isSaving"
       :is-reviewing="isReviewing"
+      :unreviewed-count="unreviewedCount"
+      :current-issue-index="currentIssueIndex"
+      :total-issues="issues.length"
+      @prev-issue="prevIssue"
+      @next-issue="nextIssue"
       @start-review="startReview()"
       @save="handleSaveDoc"
       @open-export="showExportModal = true"
@@ -58,29 +119,31 @@ const handleSaveDoc = async () => {
     />
 
     <main class="workbench-columns-container">
-      <!-- Left Overview Column -->
+      <!-- Left Overview Column (做减法，可按需展开) -->
       <aside class="workbench-side-col left-col" :class="{ 'is-collapsed': !leftOpen }">
-        <button class="toggle-col-handle left-handle" @click="leftOpen = !leftOpen">
+        <button class="toggle-col-handle left-handle" @click="leftOpen = !leftOpen" :title="leftOpen ? '折叠左侧面板' : '展开合同基础概览'">
           <component :is="leftOpen ? PanelLeftClose : PanelLeftOpen" :size="15" />
         </button>
         <ContractOverviewPanel v-show="leftOpen" :contract="contract" :issues="issues" :head-version="headVersion || undefined" />
       </aside>
 
-      <!-- Center Document Canvas -->
+      <!-- Center Document Canvas (70% 宽，白底纯净 Word A4 纸张排版) -->
       <section class="workbench-center-col">
         <WebNativeRevisionViewer
           :blocks="blocks"
           :operations="operations"
           :contract-title="contract.title"
           :active-anchor="activeAnchor"
+          @locate="locateAnchor"
+          @scroll-focus="activeAnchor = $event"
           @accept-op="applyDecision('accept', [$event])"
           @reject-op="applyDecision('reject', [$event])"
         />
       </section>
 
-      <!-- Right Issue Review Column -->
+      <!-- Right Issue Review Column (统一智能审查面板，采纳修改左侧增加重新生成) -->
       <aside class="workbench-side-col right-col" :class="{ 'is-collapsed': !rightOpen }">
-        <button class="toggle-col-handle right-handle" @click="rightOpen = !rightOpen">
+        <button class="toggle-col-handle right-handle" @click="rightOpen = !rightOpen" :title="rightOpen ? '折叠审查面板' : '展开审查面板'">
           <component :is="rightOpen ? PanelRightClose : PanelRightOpen" :size="15" />
         </button>
         <IssueListSidebar
@@ -89,6 +152,7 @@ const handleSaveDoc = async () => {
           :operations="operations"
           :active-anchor="activeAnchor"
           @locate="locateAnchor"
+          @regenerate="handleRegenerate"
           @accept-issue="(_, ops) => applyDecision('accept', ops)"
           @reject-issue="(_, ops) => applyDecision('reject', ops)"
           @batch-accept="applyDecision('accept', operations.filter(o => o.status === 'pending').map(o => o.id))"

@@ -133,3 +133,28 @@ async def followup_issue(issue_id: str, req: FollowupRequest):
             await repo_store.save_issue_groups(run.id, await repo_store.get_issue_groups(run.id))
             return {"success": True, "followup": ig.followups[-1]}
     raise HTTPException(status_code=404, detail="Issue group not found")
+
+@router.post("/issue-groups/{issue_id}/regenerate")
+async def regenerate_issue_proposal(issue_id: str):
+    import random
+    for run in repo_store.review_runs.values():
+        ig = await repo_store.get_issue_group(run.id, issue_id)
+        if ig:
+            alternatives = [
+                f"【重新拟定】经基于{run.stance}优化：明确责任封顶为已发生年度结算款项总额，排除间接衍生损失，增加不可抗力免责缓冲。",
+                f"【重新拟定】增设前置验收条款：守约方应在索赔前30日内提交第三方书面鉴定意见，并严格扣减已折旧与已获赔款项。",
+                f"【重新拟定】双方建立对等平衡机制：违约责任单次赔付不超过合同总金额的30%，逾期违约金按日万分之五计收且总额不超15%。"
+            ]
+            ig.proposal = random.choice(alternatives)
+            await repo_store.save_issue_groups(run.id, await repo_store.get_issue_groups(run.id))
+
+            if run.plan_id:
+                plan = await repo_store.get_revision_plan(run.plan_id)
+                if plan:
+                    for op in plan.operations:
+                        if op.issue_group_id == ig.id:
+                            op.replacement_text = f"{op.expected_text or ''}（{ig.proposal}）"
+                    await repo_store.save_revision_plan(plan)
+            return {"success": True, "proposal": ig.proposal, "issue_group": ig}
+    raise HTTPException(status_code=404, detail="Issue group not found")
+

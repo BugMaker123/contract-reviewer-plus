@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { IssueGroup, RevisionOperation } from '@/shared/types';
 import IssueCard from './IssueCard.vue';
 import BaseSelect from '@/shared/ui/BaseSelect.vue';
@@ -15,6 +15,7 @@ const emit = defineEmits<{
   (e: 'locate', anchor: string): void;
   (e: 'accept-issue', issueId: string, opIds: string[]): void;
   (e: 'reject-issue', issueId: string, opIds: string[]): void;
+  (e: 'regenerate', issueId: string): void;
   (e: 'batch-accept'): void;
   (e: 'open-comment', issueId: string): void;
   (e: 'open-followup', issueId: string): void;
@@ -23,6 +24,16 @@ const emit = defineEmits<{
 const searchQuery = ref('');
 const selectedSeverity = ref('all');
 const selectedStatus = ref('all');
+
+// 左右智能联动：当正文当前焦点锚点改变时，自动将右侧列表平滑滚动至对应卡片
+watch(() => props.activeAnchor, (newAnchor) => {
+  if (newAnchor) {
+    const el = document.getElementById(`card-${newAnchor}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+});
 
 const severityOptions = [
   { label: '全部风险等级', value: 'all' },
@@ -98,10 +109,11 @@ const filteredIssues = computed(() => {
         :key="issue.id"
         :issue="issue"
         :operations="operations"
-        :is-active="activeAnchor === issue.clause_title"
+        :is-active="Boolean(activeAnchor && (activeAnchor === issue.clause_title || activeAnchor.includes(issue.clause_title)))"
         @locate="emit('locate', $event)"
         @accept-issue="(id, ops) => emit('accept-issue', id, ops)"
         @reject-issue="(id, ops) => emit('reject-issue', id, ops)"
+        @regenerate="emit('regenerate', $event)"
         @open-comment="emit('open-comment', $event)"
         @open-followup="emit('open-followup', $event)"
       />

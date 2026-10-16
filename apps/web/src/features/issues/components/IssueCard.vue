@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import type { IssueGroup, RevisionOperation } from '@/shared/types';
 import BaseBadge from '@/shared/ui/BaseBadge.vue';
-import { Check, X, MessageSquare, HelpCircle, Navigation } from 'lucide-vue-next';
+import { Check, X, MessageSquare, HelpCircle, Navigation, RotateCw } from 'lucide-vue-next';
 
 const props = defineProps<{
   issue: IssueGroup;
@@ -13,51 +14,60 @@ const emit = defineEmits<{
   (e: 'locate', anchor: string): void;
   (e: 'accept-issue', issueId: string, opIds: string[]): void;
   (e: 'reject-issue', issueId: string, opIds: string[]): void;
+  (e: 'regenerate', issueId: string): void;
   (e: 'open-comment', issueId: string): void;
   (e: 'open-followup', issueId: string): void;
 }>();
+
+const isRegenerating = ref(false);
 
 const getRelatedOpIds = (): string[] => {
   return props.operations
     .filter((op) => op.issue_group_id === props.issue.id)
     .map((op) => op.id);
 };
+
+const handleRegenerateClick = () => {
+  if (isRegenerating.value) return;
+  isRegenerating.value = true;
+  emit('regenerate', props.issue.id);
+  setTimeout(() => {
+    isRegenerating.value = false;
+  }, 750);
+};
 </script>
 
 <template>
   <div
+    :id="`card-${issue.clause_title}`"
     class="issue-card-panel"
     :class="[
       `severity-${issue.severity}`,
       `status-${issue.status}`,
       { 'is-active': isActive }
     ]"
+    @click="emit('locate', issue.clause_title)"
   >
     <!-- Top Bar -->
-    <div class="card-header" @click="emit('locate', issue.clause_title)">
+    <div class="card-header">
       <div class="header-left">
-        <span class="clause-pill">{{ issue.clause_title }}</span>
         <BaseBadge :variant="issue.severity" size="sm">
           {{ issue.severity === 'high' ? '高风险' : issue.severity === 'medium' ? '中风险' : '低风险' }}
         </BaseBadge>
+        <span class="clause-pill">{{ issue.clause_title }}</span>
       </div>
 
       <div class="header-right">
-        <BaseBadge :variant="issue.status === 'accepted' ? 'success' : issue.status === 'rejected' ? 'neutral' : 'warning'" size="sm">
-          {{ issue.status === 'accepted' ? '已采纳' : issue.status === 'rejected' ? '已拒绝' : issue.status === 'partially_accepted' ? '部分采纳' : '待复核' }}
-        </BaseBadge>
+        <!-- 优化点 1：明确的定位正文按钮 -->
+        <button class="btn-locate" @click.stop="emit('locate', issue.clause_title)" title="在正文中定位此条款">
+          <Navigation :size="12" /> 定位正文
+        </button>
       </div>
     </div>
 
-    <!-- Risk Summary -->
+    <!-- Risk Summary Title -->
     <div class="card-title-row">
       <span class="main-risk-point">{{ issue.risk_points[0] || '条款合规性风险' }}</span>
-    </div>
-
-    <!-- Evidence Quote -->
-    <div class="evidence-quote-box">
-      <span class="quote-tag">原文: </span>
-      <span class="quote-text">{{ issue.evidence }}</span>
     </div>
 
     <!-- Public Analysis -->
@@ -66,41 +76,52 @@ const getRelatedOpIds = (): string[] => {
       <span>{{ issue.public_analysis }}</span>
     </div>
 
-    <!-- Proposal -->
-    <div class="proposal-box">
-      <span class="proposal-tag">修改方向: </span>
-      <span>{{ issue.proposal }}</span>
+    <!-- 建议修订差异框 -->
+    <div v-if="issue.proposal" class="card-diff-box">
+      <div class="diff-label">建议修订/补充条款：</div>
+      <div class="diff-content">+ {{ issue.proposal }}</div>
     </div>
 
-    <!-- Action Bar -->
+    <!-- Action Bar: 采纳修改左侧增加重新生成按钮，采纳在前拒绝在后 -->
     <div class="card-footer-actions">
-      <button class="footer-btn locate-btn" @click="emit('locate', issue.clause_title)" title="在正文中定位">
-        <Navigation :size="13" /> 定位
-      </button>
-
       <div class="decision-group">
+        <!-- 重新生成按钮 -->
         <button
-          class="decision-btn accept-btn"
-          :class="{ active: issue.status === 'accepted' }"
-          @click="emit('accept-issue', issue.id, getRelatedOpIds())"
+          class="btn-card regenerate"
+          :class="{ loading: isRegenerating }"
+          :disabled="isRegenerating"
+          @click.stop="handleRegenerateClick"
+          title="让 AI 重新撰写修订建议"
         >
-          <Check :size="13" /> 采纳
+          <RotateCw :size="13" :class="{ 'spin-icon': isRegenerating }" />
+          <span>{{ isRegenerating ? '重新生成中...' : '重新生成' }}</span>
         </button>
+
+        <!-- 采纳修改按钮（绿色主按钮） -->
         <button
-          class="decision-btn reject-btn"
+          class="btn-card accept"
+          :class="{ active: issue.status === 'accepted' }"
+          @click.stop="emit('accept-issue', issue.id, getRelatedOpIds())"
+        >
+          <Check :size="13" /> 采纳修改
+        </button>
+
+        <!-- 拒绝按钮（灰色次按钮） -->
+        <button
+          class="btn-card reject"
           :class="{ active: issue.status === 'rejected' }"
-          @click="emit('reject-issue', issue.id, getRelatedOpIds())"
+          @click.stop="emit('reject-issue', issue.id, getRelatedOpIds())"
         >
           <X :size="13" /> 拒绝
         </button>
       </div>
 
       <div class="aux-btns">
-        <button class="icon-aux-btn" @click="emit('open-comment', issue.id)" title="添加备注">
+        <button class="icon-aux-btn" @click.stop="emit('open-comment', issue.id)" title="添加备注">
           <MessageSquare :size="14" />
           <span v-if="issue.comments.length > 0" class="count-badge">{{ issue.comments.length }}</span>
         </button>
-        <button class="icon-aux-btn" @click="emit('open-followup', issue.id)" title="条款合规咨询">
+        <button class="icon-aux-btn" @click.stop="emit('open-followup', issue.id)" title="条款合规咨询">
           <HelpCircle :size="14" />
           <span v-if="issue.followups.length > 0" class="count-badge">{{ issue.followups.length }}</span>
         </button>
@@ -196,63 +217,103 @@ const getRelatedOpIds = (): string[] => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 8px;
+  padding-top: 10px;
   border-top: 1px solid #f1f5f9;
 }
 
-.locate-btn {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-  font-size: 11.5px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  display: flex;
+.btn-locate {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  cursor: pointer;
-}
-.locate-btn:hover {
+  font-size: 11px;
+  font-weight: 500;
   color: #2563eb;
-  border-color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-locate:hover {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+.card-diff-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.diff-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.diff-content {
+  color: #1d4ed8;
+  font-weight: 500;
 }
 
 .decision-group {
   display: flex;
   gap: 6px;
-}
-.decision-btn {
-  border: none;
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  display: flex;
   align-items: center;
-  gap: 3px;
-  transition: all 0.15s;
-}
-.accept-btn {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
-}
-.accept-btn:hover, .accept-btn.active {
-  background: #15803d;
-  color: #fff;
-  border-color: #15803d;
 }
 
-.reject-btn {
+.btn-card {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+.btn-card.regenerate {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+.btn-card.regenerate:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.btn-card.regenerate:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.btn-card.accept {
+  background: #16a34a;
+  color: #ffffff;
+}
+.btn-card.accept:hover, .btn-card.accept.active {
+  background: #15803d;
+}
+.btn-card.reject {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+}
+.btn-card.reject:hover, .btn-card.reject.active {
   background: #fef2f2;
   color: #dc2626;
-  border: 1px solid #fecaca;
+  border-color: #fecaca;
 }
-.reject-btn:hover, .reject-btn.active {
-  background: #b91c1c;
-  color: #fff;
-  border-color: #b91c1c;
+.spin-icon {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .aux-btns {
